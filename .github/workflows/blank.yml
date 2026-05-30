@@ -1,0 +1,53 @@
+name: 🔗 任意直链文件下载器(跳过证书校验)
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: '请输入外网文件直链 (支持 http/https)'
+        required: true
+        default: 'https://example.com'
+      file_name:
+        description: '保存的文件名（留空则自动解析）'
+        required: false
+        default: ''
+
+jobs:
+  download-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🛠 检查并设置文件名
+      id: set-name
+      run: |
+        INPUT_NAME="${{ github.event.inputs.file_name }}"
+        if [ -z "$INPUT_NAME" ]; then
+          CLEAN_URL=$(echo "${{ github.event.inputs.file_url }}" | cut -d? -f1)
+          FILENAME=$(basename "$CLEAN_URL")
+          if [ -z "$FILENAME" ] || [ "$FILENAME" = "/" ]; then
+            FILENAME="downloaded_file"
+          fi
+        else
+          FILENAME="$INPUT_NAME"
+        fi
+        echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+        echo "确认为: $FILENAME"
+
+    - name: 📥 从外网下载文件（忽略SSL证书错误）
+      run: |
+        # 参数说明：
+        # -k / --insecure : 关键参数！直接跳过 SSL/TLS 证书校验
+        # -L : 自动跟随页面重定向
+        # --retry 3 : 如果失败，自动重试 3 次
+        # -C - : 支持断点续传
+        curl -k -L --retry 3 -C - "${{ github.event.inputs.file_url }}" -o "${{ steps.set-name.outputs.filename }}"
+        
+        echo "文件下载状态："
+        ls -lh "${{ steps.set-name.outputs.filename }}"
+
+    - name: 📤 上传文件到 GitHub 工件
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.set-name.outputs.filename }}
+        path: ${{ steps.set-name.outputs.filename }}
+        retention-days: 7
