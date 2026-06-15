@@ -1,0 +1,52 @@
+name: Download HF Model and Upload Artifact
+
+on:
+  workflow_dispatch: # 支持手动触发并输入模型 ID
+    inputs:
+      model_id:
+        description: 'Hugging Face 模型 ID (例如: bert-base-uncased)'
+        required: true
+        default: 'bert-base-uncased'
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install huggingface_hub
+      run: |
+        pip install -U huggingface_hub
+
+    - name: Download Model from Hugging Face
+      # 如果模型需要权限，请在 GitHub 仓库的 Secrets 中配置 HF_TOKEN
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }} 
+      run: |
+        # 创建一个临时目录存放模型实体文件
+        mkdir -p ./my-model
+        
+        # 使用 --local-dir-use-symlinks False 确保下载的是真实文件而非软链接
+        huggingface-cli download \
+          --local-dir ./my-model \
+          --local-dir-use-symlinks False \
+          ${{ github.event.inputs.model_id }}
+
+    - name: Zip Model Folder (Optional but Recommended)
+      # 打包成 zip 可以显著加快 GitHub Artifact 的上传和下载速度
+      run: |
+        zip -r model.zip ./my-model
+
+    - name: Upload Model to GitHub Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.event.inputs.model_id }}-artifact
+        path: model.zip # 如果上一步没打包，这里可以直接写 ./my-model
+        retention-days: 5 # 设置产物保留天数（默认 90 天，建议设短以节省空间）
