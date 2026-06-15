@@ -6,7 +6,7 @@ on:
       model_id:
         description: 'Hugging Face 模型 ID'
         required: true
-        default: 'bert-base-uncased'
+        default: 'BAAI/bge-m3'
 
 jobs:
   build-and-upload:
